@@ -1,25 +1,26 @@
+
 ##### Consigna ####
 Los datos proporcionados en el archivo DatosGrado.csv (*) corresponden a registros de la
-longitud de la raiz más larga en cada biorollo, para cada especie y tratamiento, al final de la
-experiencia (día 93)
-- Explorar los datos y describir la muestra. ¿Qué puede decir del valor cero en la
-variable longitud de la raíz? ¿Tiene sentido incluir estos datos en un análisis de
-longitud de la raíz?
-  - ¿Qué porcentaje de plantas no sacó raíz? ¿Hay diferencias entre especies en la
-proporción de plantas que desarrollan raíces?
-  - El crecimiento de la raíz, ¿se ve afectado por el tratamiento de lixiviado de manera
+longitud de la raiz mÃ¡s larga en cada biorollo, para cada especie y tratamiento, al final de la
+experiencia (dÃ­a 93)
+- Explorar los datos y describir la muestra. Â¿QuÃ© puede decir del valor cero en la
+variable longitud de la raÃ­z? Â¿Tiene sentido incluir estos datos en un anÃ¡lisis de
+longitud de la raÃ­z?
+  - Â¿QuÃ© porcentaje de plantas no sacÃ³ raÃ­z? Â¿Hay diferencias entre especies en la
+proporciÃ³n de plantas que desarrollan raÃ­ces?
+  - El crecimiento de la raÃ­z, Â¿se ve afectado por el tratamiento de lixiviado de manera
 diferencial para las tres especies?
-  - Recomendar la/s especie/s de macrófitas que más posibilidad tiene/n de
+  - Recomendar la/s especie/s de macrÃ³fitas que mÃ¡s posibilidad tiene/n de
 establecerse en el ambiente y el tipo de tratamiento de lixiviado que considere
-adecuado para la restauración de la comunidad vegetal en los arroyos bajo estudio.
+adecuado para la restauraciÃ³n de la comunidad vegetal en los arroyos bajo estudio.
 
 (*) 'data.frame': 66 obs. of 5 variables:
   Diccionario de variables:
-  ID_biorollo: identificador único del biorollo, integer.
-Dias_desde_armado: días transcurridos desde el armado del biorollo, integer.
-Especie: especie de macrófita, factor, 3 niveles ("Junco", "Pehuajó" y "Totora").
+  ID_biorollo: identificador Ãºnico del biorollo, integer.
+Dias_desde_armado: dÃ­as transcurridos desde el armado del biorollo, integer.
+Especie: especie de macrÃ³fita, factor, 3 niveles ("Junco", "PehuajÃ³" y "Totora").
 Tratamiento: tipo de lixiviado, factor, 2 niveles ("Con remojo" y "Sin remojo")
-Raiz_mas_larga: longitud de la raiz más larga (cm), numeric. Consigna
+Raiz_mas_larga: longitud de la raiz mÃ¡s larga (cm), numeric. Consigna
 
 ##### Paquetes que vamos necesitando los importamos aca ####
 install.packages("carData")
@@ -29,6 +30,10 @@ install.packages("emmeans")
 install.packages("ggplot2")
 install.packages("vcd")
 install.packages("nlme")
+#install.packages("installr", dependencies = TRUE) #actuaiza a la aultima version de R
+#library(installr)
+#updateR()
+version
 library("nlme")
 library("vcd")
 library ("car")
@@ -36,11 +41,12 @@ library ("dplyr")
 library ("emmeans")
 library ("ggplot2")
 ##Me tiro error por no tener la ultima version, con esto lo actualizo los paquetes.
-#update.packages(ask = FALSE, checkBuilt = TRUE)
+update.packages(ask = FALSE, checkBuilt = TRUE)
 
 ##### Importo datos y veo las variables #####
 rm(list=ls()) #limpio memoria
-setwd("F:/Juli/Documents/Bioestadistica/Concurso GAB") #seteo directorio
+#setwd("F:/Juli/Documents/Bioestadistica/Concurso GAB") #seteo directorio
+setwd("C:/Users/lauta/Downloads")
 datos <- read.csv("DatosGrado.csv", sep = ",", header = TRUE, stringsAsFactors = FALSE)
 head(datos) #chequeo que haya quedado bien
 # El Id y los dias desde el armado no son variables a estudiar! Tener cuidado que el ID no cohincide con el n de plantas. tenemso en total 66 plantas!
@@ -56,10 +62,11 @@ summary(datos) # Ahora si summary me dice los niveles de cada factor :)
 ### Especie: Junco (22), Pehuaja (24), Totora (20)
 ### Tratamiento: Con remojo (34), Sin remojo (32)
 #VARIABLE RESPUESTA:
-#Raiz mas larga: Variable respuesta cuantitativa continua, se espera distribucion normal, dominio (0,29)
-# las raices q valen cero en realidad  son plantas que no properaron! Las saco! me voy a fijar que porcentaje de palntitas de cada tipo porspero.
+#Raiz mas larga: Variable respuesta cuantitativa continua, se espera distribucion normal, dominio (0,29. 
+### OJO! la variable nunca puede tomar valores negativos! probar distribucion GAMMA!!
+# las raices q valen cero en realidad  son plantas que no properaron! Las saco! me voy a fijar que porcentaje de plantitas de cada tipo porspero.
 
-table(subset(datos, Raiz_mas_larga == 0)$Especie) # Cuento cuántas plantas tienen Raiz_mas_larga= 0 para cada especie
+table(subset(datos, Raiz_mas_larga == 0)$Especie) # Cuento cuÃ¡ntas plantas tienen Raiz_mas_larga= 0 para cada especie
 
 ##### codigo falopa de a ver si funca para hacer tabla con % de raiz cero para cada tratamiento#### 
 tabla_completa <- datos %>%
@@ -84,7 +91,7 @@ tabla_completa <- datos %>%
         Raiz_mas_larga = sum(Raiz_mas_larga > 0),
         Porcentaje_Raiz_cero = (Raiz_cero / Total) * 100
       ) %>%
-      mutate(Tratamiento = "Todos") # Añadimos una columna para diferenciar
+      mutate(Tratamiento = "Todos") # AÃ±adimos una columna para diferenciar
   ) %>%
   # Tabla con totales por tratamiento
   bind_rows(
@@ -97,7 +104,7 @@ tabla_completa <- datos %>%
         Raiz_mas_larga = sum(Raiz_mas_larga > 0),
         Porcentaje_Raiz_cero = (Raiz_cero / Total) * 100
       ) %>%
-      mutate(Especie = "Todos") # Añadimos una columna para diferenciar
+      mutate(Especie = "Todos") # AÃ±adimos una columna para diferenciar
   ) %>%
   # Tabla con totales generales
   bind_rows(
@@ -108,7 +115,7 @@ tabla_completa <- datos %>%
         Raiz_mas_larga = sum(Raiz_mas_larga > 0),
         Porcentaje_Raiz_cero = (Raiz_cero / Total) * 100
       ) %>%
-      mutate(Especie = "Todos", Tratamiento = "Todos") # Añadimos columnas para diferenciar
+      mutate(Especie = "Todos", Tratamiento = "Todos") # AÃ±adimos columnas para diferenciar
   )
 
 print(tabla_completa) # Funciona joya :)
@@ -123,24 +130,24 @@ library(dplyr)
 tabla_mosaico <- datos %>%
   mutate(Especie = as.factor(Especie),
          Tratamiento = as.factor(Tratamiento),
-         Raiz = ifelse(Raiz_mas_larga == 0, "Sin raíz", "Con raíz")) %>%
+         Raiz = ifelse(Raiz_mas_larga == 0, "Sin raÃ­z", "Con raÃ­z")) %>%
   count(Especie, Tratamiento, Raiz)
 
 # Convertir a tabla de contingencia
 tabla_mosaico <- xtabs(n ~ Especie + Tratamiento + Raiz, data = tabla_mosaico)
 
-# Crear un vector de colores para las combinaciones de Especie, Tratamiento y Raíz
-colores <- c("Junco.Sin raíz.Con remojo" = "#8B0000",  # Rojo oscuro
-             "Junco.Sin raíz.Sin remojo" = "#FF6347",  # Rojo claro
-             "Pehuajó.Sin raíz.Con remojo" = "#006400",  # Verde oscuro
-             "Pehuajó.Sin raíz.Sin remojo" = "#90EE90",  # Verde claro
-             "Totora.Sin raíz.Con remojo" = "#00008B",  # Azul oscuro
-             "Totora.Sin raíz.Sin remojo" = "#87CEFA",  # Azul claro,
-             "Junco.Con raíz" = "white",
-             "Pehuajó.Con raíz" = "white",
-             "Totora.Con raíz" = "white")
+# Crear un vector de colores para las combinaciones de Especie, Tratamiento y RaÃ­z
+colores <- c("Junco.Sin raÃ­z.Con remojo" = "#8B0000",  # Rojo oscuro
+             "Junco.Sin raÃ­z.Sin remojo" = "#FF6347",  # Rojo claro
+             "PehuajÃ³.Sin raÃ­z.Con remojo" = "#006400",  # Verde oscuro
+             "PehuajÃ³.Sin raÃ­z.Sin remojo" = "#90EE90",  # Verde claro
+             "Totora.Sin raÃ­z.Con remojo" = "#00008B",  # Azul oscuro
+             "Totora.Sin raÃ­z.Sin remojo" = "#87CEFA",  # Azul claro,
+             "Junco.Con raÃ­z" = "white",
+             "PehuajÃ³.Con raÃ­z" = "white",
+             "Totora.Con raÃ­z" = "white")
 
-# Función personalizada para asignar colores a las celdas
+# FunciÃ³n personalizada para asignar colores a las celdas
 mi_color <- function(especie, tratamiento, raiz) {
   key <- paste(especie, raiz, tratamiento, sep = ".")
   if (key %in% names(colores)) {
@@ -150,22 +157,22 @@ mi_color <- function(especie, tratamiento, raiz) {
   }
 }
 
-# Crear la lista de colores para las celdas del gráfico de mosaico
+# Crear la lista de colores para las celdas del grÃ¡fico de mosaico
 celda_colores <- apply(expand.grid(dimnames(tabla_mosaico)), 1, 
                        function(row) mi_color(row[[1]], row[[2]], row[[3]]))
 
-# Crear el gráfico de mosaico con los colores personalizados
+# Crear el grÃ¡fico de mosaico con los colores personalizados
 mosaic(~ Especie + Tratamiento + Raiz, data = tabla_mosaico,
        gp = gpar(fill = celda_colores),
-       main = "Distribución de Plantas sin Raíz por Especie y Tratamiento",
+       main = "DistribuciÃ³n de Plantas sin RaÃ­z por Especie y Tratamiento",
        legend = FALSE)
 #######
-  
+
 
 #### ANALISIS GRAFICO EXPLORATORIO DE LOS DATOS####
 # Para evitar problemas borro todo y meto los datos para filtrarlo y hacer el modelo
 rm(list=ls()) #limpio memoria
-setwd("F:/Juli/Documents/Bioestadistica/Concurso GAB") #seteo directorio
+#setwd("F:/Juli/Documents/Bioestadistica/Concurso GAB") #seteo directorio
 Sin_Filtrar <- read.csv("DatosGrado.csv", sep = ",", header = TRUE, stringsAsFactors = FALSE)
 Sin_Filtrar$Especie <- as.factor(Sin_Filtrar$Especie)
 Sin_Filtrar$Tratamiento <- as.factor(Sin_Filtrar$Tratamiento)
@@ -173,6 +180,19 @@ Sin_Filtrar$Tratamiento <- as.factor(Sin_Filtrar$Tratamiento)
 Datos<- Sin_Filtrar %>%
   filter(Raiz_mas_larga != 0)
 summary(Datos) #chequeo, funciono bien :)
+
+####Como queda ahora la distribucion?
+# Crear el grÃ¡fico de barras para la distribuciÃ³n del nÃºmero muestral por tratamiento
+Datos$Tratamiento_Especie <- interaction(Datos$Tratamiento, Datos$Especie)
+# Crear un grÃ¡fico de barras que muestre la cantidad de observaciones por combinaciÃ³n de tratamiento y especie
+ggplot(Datos, aes(x = Tratamiento_Especie)) +
+  geom_bar(fill = "skyblue") +
+  labs(title = "DistribuciÃ³n del NÃºmero Muestral por Tratamiento y Especie",
+       x = "Tratamiento y Especie",
+       y = "Frecuencia") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 
 # Grafico de perfiles,  para evaluar relacion entre factores
 (mediasDatos<-aggregate(Datos$Raiz_mas_larga~Datos$Especie+Datos$Tratamiento, Datos,mean)) # tabla de medias
@@ -187,9 +207,22 @@ g1 # Se ve con claridad una interaccion entre las variables especie y tratamient
 #ENTONCES: ANOVA de dos factores, Evaluar interaccion!!
 
 
-#### Modelo y veo supuestos####
+                                   #### Modelo y veo supuestos####
+#Posibles modelos:
+* Modelo normal con interaccion
+* Modelo normal sin interaccion
+* Modelo normal con/sin interacion con la variancia modelada (varIden) |factor , |Especie y |Factor*Especie
+* Modelo con distribucion Gamma Con interaccion o sin interaccion
+* Modelo con distribucion Gamma con modelado de varianza??? esto existe? 
 
-#Entonces planteo modelo de comparacion de medias con interaccion
+g3<-ggplot(Datos, aes(x = Raiz_mas_larga, fill = Especie)) +
+  geom_density(alpha = 0.8) +
+  labs(x = "Largo raÃ­z (cm)", y = "Densidad") +
+  scale_fill_manual(values = c("red", "green", "lightblue")) +
+  theme_minimal()
+g3
+  
+####Entonces planteo modelo Normal de comparacion de medias con interaccion####
 modelo1<-lm(Raiz_mas_larga ~ Tratamiento*Especie, Datos)
 
 #suepuestos
@@ -225,3 +258,5 @@ leveneTest(Raiz_mas_larga ~ Tratamiento*Especie,Datos)
 #Normalidad
 qqPlot(e, main = "QQplot - Modelo_varIdent") #da feo, cagamos
 shapiro.test(e)
+
+##### Planteo modelo GAMMA, comparacion de medias con interaccion ####
