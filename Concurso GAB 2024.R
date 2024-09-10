@@ -1,4 +1,3 @@
-
 ##### Consigna ####
 Los datos proporcionados en el archivo DatosGrado.csv (*) corresponden a registros de la
 longitud de la raiz más larga en cada biorollo, para cada especie y tratamiento, al final de la
@@ -191,10 +190,37 @@ ggplot(Datos, aes(x = Tratamiento_Especie)) +
        x = "Tratamiento y Especie",
        y = "Frecuencia") +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) #No quedo balanceado pero no es nada grave
+
+###Grafico de DENSIDAD
+g3<-ggplot(Datos, aes(x = Raiz_mas_larga, fill = Especie)) +
+  geom_density(alpha = 0.8) +
+  labs(x = "Largo raíz (cm)", y = "Densidad") +
+  scale_fill_manual(values = c("red", "green", "lightblue")) +
+  theme_minimal()
+g3 ]#se ve con claridad los dos picos dentro de cada especie
+#Hago grafico de densidad pero incluyo a la otra variable
+gDensidad <- ggplot(Datos, aes(x = Raiz_mas_larga, fill = interaction(Tratamiento, Especie))) +
+  geom_density(alpha = 0.8) +
+  labs(x = "Largo raíz (cm)", y = "Densidad", fill = "Tratamiento y Especie") +
+  scale_fill_manual(values = c("red", "green", "lightblue", "purple", "orange", "yellow")) + 
+  theme_minimal() +
+  theme(legend.position = "top")
+gDensidad
+# Es mucho bardo no se lee bien hago dos graficos separados por tratamiento
+gDensidadTratamiento <- ggplot(Datos, aes(x = Raiz_mas_larga, fill = Especie)) +
+  geom_density(alpha = 0.8) +
+  labs(x = "Largo raíz (cm)", y = "Densidad", fill = "Especie") +
+  scale_fill_manual(values = c("red", "green", "lightblue")) + 
+  theme_minimal() +
+  theme(legend.position = "top") +
+  facet_wrap(~ Tratamiento)
+gDensidadTratamiento  # Aun asi se siguen viendo dos picos en "con remojo" raro y junco no tiene ningun pico en absoluto
+
+### BOXPLOT para evaluar relacion varianza y media
 
 
-# Grafico de perfiles,  para evaluar relacion entre factores
+### Grafico de PERFILES,  para evaluar relacion entre factores
 (mediasDatos<-aggregate(Datos$Raiz_mas_larga~Datos$Especie+Datos$Tratamiento, Datos,mean)) # tabla de medias
 colnames(mediasDatos) <- c("Especie", "Tratamiento", "Raiz_mas_larga")
 str(mediasDatos) #veo la estructura
@@ -205,38 +231,40 @@ g1 <- g1 + geom_jitter(data = Datos, width = 0.05, height = 0)
 g1 # Se ve con claridad una interaccion entre las variables especie y tratamiento. Sin remojo, totora y pehuajo muestran una tendencia a mayor desarrollo de raiz.
 
 #ENTONCES: ANOVA de dos factores, Evaluar interaccion!!
+BoxPlot <- ggplot(Datos, aes(x = interaction(Tratamiento, Especie), y = Raiz_mas_larga, fill = Especie)) +
+  geom_boxplot() +
+  labs(x = "Tratamiento y Especie", y = "Largo de la raíz (cm)", fill = "Especie") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),  # Rotar las etiquetas del eje X
+        legend.position = "top")
+BoxPlot # no es muy claro que haya un aumento de la varianza con un aumento de la media... Not sure si usar GAMMA
 
-
-                                   #### Modelo y veo supuestos####
+#### Modelo y veo supuestos####
 #Posibles modelos:
-* Modelo normal con interaccion
-* Modelo normal sin interaccion
-* Modelo normal con/sin interacion con la variancia modelada (varIden) |factor , |Especie y |Factor*Especie
-* Modelo con distribucion Gamma Con interaccion o sin interaccion
-* Modelo con distribucion Gamma con modelado de varianza??? esto existe? 
-
-g3<-ggplot(Datos, aes(x = Raiz_mas_larga, fill = Especie)) +
-  geom_density(alpha = 0.8) +
-  labs(x = "Largo raíz (cm)", y = "Densidad") +
-  scale_fill_manual(values = c("red", "green", "lightblue")) +
-  theme_minimal()
-g3
+#* Modelo normal con interaccion
+#* Modelo normal sin interaccion
+#* Modelo normal con/sin interacion con la variancia modelada (varIden) |factor , |Especie y |Factor*Especie
+#* Modelo con distribucion Gamma Con interaccion o sin interaccion
+#* Modelo con distribucion Gamma con modelado de varianza??? esto existe? 
   
+
 ####Entonces planteo modelo Normal de comparacion de medias con interaccion####
-modelo1<-lm(Raiz_mas_larga ~ Tratamiento*Especie, Datos)
+
+MNormal<-glm(Raiz_mas_larga ~ Especie * Tratamiento, 
+             data = Datos)
 
 #suepuestos
-e<-resid(modelo1) # residuos
-re<-rstandard(modelo1) #residuos estandarizados
-pre<-predict(modelo1) #predichos
+e<-resid(MNormal) # residuos
+re<-rstandard(MNormal) #residuos estandarizados
+pre<-predict(MNormal) #predichos
 par(mfrow = c(1, 2))
 #Homocedasticidad
-plot(pre, re, xlab="Predichos", ylab="Residuos estandarizados",main="RE vs PRED - Modelo 1" )
+plot(pre, re, xlab="Predichos", ylab="Residuos estandarizados",main="RE vs PRED - Modelo Normal" )
 abline(0,0) ## Rechazo H0!! hay que modelar varianza!
-leveneTest(Raiz_mas_larga ~ Tratamiento*Especie, Datos)
+leveneTest(Raiz_mas_larga ~ Tratamiento*Especie, Datos) #Rechazo homocedasticidad
 
 #Normalidad
-qqPlot(e, main = "QQplot -Modelo 1") #da feo, cagamos
+qqPlot(e, main = "QQplot -MNormal") #da feo, cagamos
 shapiro.test(e) #0,02!! rechazo normalidad
 
 ##### Modelado de Varianza####
@@ -246,17 +274,42 @@ anova(Modelo_varIdent)
 print(Modelo_varIdent) #nos informa los desvios estandar de cada X en funcion de un devio de referencia
 
 #Chequeo supuestos
-e<-resid(Modelo_varIdent) # residuos
-re<-rstandard(Modelo_varIdent) #residuos estandarizados
-pre<-predict(Modelo_varIdent) #predichos
 par(mfrow = c(1, 2))
-#Homocedasticidad
-plot(pre, re, xlab="Predichos", ylab="Residuos estandarizados ",main="RE vs PRED - Modelo_varIdent" )
-abline(0,0) ## Rechazo H0!! hay que modelar varianza!
-leveneTest(Raiz_mas_larga ~ Tratamiento*Especie,Datos)
+#Homocedasticidad #residuos vs Predichos y levene
+ResVsPred_Norm_Iden<- plot(Modelo_varIdent, main="RE vs PRED - Modelo varIdent", xlab = "Valores Predichos", 
+     ylab = "Residuos" ) # Hermosoooo
+ResVsPred_Norm_Iden
+
+leveneTest( residuals(Modelo_varIdent)~ Tratamiento * Especie, data = Datos) #Da feo pero quiza puedo quedarme con el grafico y fue...
 
 #Normalidad
-qqPlot(e, main = "QQplot - Modelo_varIdent") #da feo, cagamos
-shapiro.test(e)
+#qqPlot(e, main = "QQplot - Modelo_varIdent") 
+shapiro.test(residuals(Modelo_varIdent)) # rechazo normalidad :(
+e=resid(Modelo_varIdent)
+ggplot(e, main = "QQplot - Modelo_varIdent")
+
+####### Tratando de arreglar el ggplot####
+residuos_df <- data.frame(residuos = resid(Modelo_varIdent))
+# Crear el gráfico QQ
+ggplot(residuos_df, aes(sample = residuos)) +
+  stat_qq() +
+  stat_qq_line() +
+  # Añadir líneas que representan el intervalo de confianza
+  geom_abline(intercept = mean(residuos_df$residuos) - sd(residuos_df$residuos), slope = 1, linetype = "dashed", color = "blue") +
+  geom_abline(intercept = mean(residuos_df$residuos) + sd(residuos_df$residuos), slope = 1, linetype = "dashed", color = "blue") +
+  ggtitle("QQplot - Modelo_varIdent") +
+  theme_minimal() # horrible
+
 
 ##### Planteo modelo GAMMA, comparacion de medias con interaccion ####
+# Ajustar el modelo Gamma con enlace logarítmico usando glm
+modelo_gamma <- glm(Raiz_mas_larga ~ Especie * Tratamiento, 
+                    data = Datos, 
+                    family = Gamma(link = "log"))
+#Chequeo supuestos
+par(mfrow = c(2, 2))
+# Gráficos para el modelo Gamma
+plot(modelo_gamma, main = "Modelo Gamma") # no cumple supuesto de homocedasticidad, se puede modelar varianza de gamma?
+
+################# Modelo varianza en Gamma ###############
+Gamma_VarIden
