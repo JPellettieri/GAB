@@ -264,8 +264,9 @@ abline(0,0) ## Rechazo H0!! hay que modelar varianza!
 leveneTest(Raiz_mas_larga ~ Tratamiento*Especie, Datos) #Rechazo homocedasticidad
 
 #Normalidad
-qqPlot(e, main = "QQplot -MNormal") #da feo, cagamos
-shapiro.test(e) #0,02!! rechazo normalidad
+qqPlot(e, main = "QQplot -MNormal") # da feo
+?qqPlot
+sqqplotshapiro.test(e) #0,02!! rechazo normalidad
 
 ##### Modelado de Varianza####
 library("nlme")
@@ -283,10 +284,11 @@ ResVsPred_Norm_Iden
 leveneTest( residuals(Modelo_varIdent)~ Tratamiento * Especie, data = Datos) #Da feo pero quiza puedo quedarme con el grafico y fue...
 
 #Normalidad
-#qqPlot(e, main = "QQplot - Modelo_varIdent") 
+qqPlot(e, main = "QQplot - Modelo_varIdent")  #corrio y dio feo
 shapiro.test(residuals(Modelo_varIdent)) # rechazo normalidad :(
 e=resid(Modelo_varIdent)
 ggplot(e, main = "QQplot - Modelo_varIdent")
+print(e)
 
 ####### Tratando de arreglar el ggplot####
 residuos_df <- data.frame(residuos = resid(Modelo_varIdent))
@@ -311,5 +313,68 @@ par(mfrow = c(2, 2))
 # Gráficos para el modelo Gamma
 plot(modelo_gamma, main = "Modelo Gamma") # no cumple supuesto de homocedasticidad, se puede modelar varianza de gamma?
 
-################# Modelo varianza en Gamma ###############
-Gamma_VarIden
+
+
+
+################# Busco transformar los datos para que ajuste a una distribucion normal####
+##################LOG Normal###########
+install.packages("MASS")
+library(MASS)
+# Ajustar el modelo con la variable dependiente original
+modelo <- glm(Raiz_mas_larga ~ Especie * Tratamiento, data = Datos)
+
+# Realizar la búsqueda de la mejor transformación Box-Cox
+boxcox_resultado <- boxcox(modelo)
+
+# Encontrar el mejor valor de lambda
+mejor_lambda <- boxcox_resultado$x[which.max(boxcox_resultado$y)]
+print(paste("El mejor valor de lambda para la transformación Box-Cox es:", mejor_lambda))
+
+# Aplicar la transformación al modelo usando el mejor lambda
+Datos$transformada <- ifelse(mejor_lambda == 0,
+                             log(Datos$Raiz_mas_larga),
+                             (Datos$Raiz_mas_larga^mejor_lambda - 1) / mejor_lambda)
+
+# Ajustar el modelo con la variable transformada
+modelo_transformado <- glm(transformada ~ Especie * Tratamiento, data = Datos)
+
+# Resumen del modelo transformado
+summary(modelo_transformado)
+
+
+
+############## Busca la mejor transformacion sea como sea ######
+install.packages("bestNormalize")
+library(bestNormalize)
+bn <- bestNormalize(Datos$Raiz_mas_larga)
+
+# Ver el resultado
+print(bn)
+
+# Aplicar la mejor transformación a los datos
+Datos$transformada <- bn$x.t
+
+# Ajustar el modelo con la variable transformada
+modelo_transformado <- glm(transformada ~ Especie * Tratamiento, data = Datos)
+
+# Resumen del modelo transformado
+summary(modelo_transformado )
+anova(modelo_transformado )
+
+#chequeo supuestos
+residuals <- residuals(modelo_transformado)
+qqnorm(residuals)
+qqline(residuals)
+shapiro.test(residuals)
+
+#Homocedasticidad
+plot(fitted(modelo_transformado), residuals)
+abline(h = 0, col = "red")
+install.packages("lmtest")
+library(lmtest)
+bptest(modelo_transformado)
+
+
+#Lienalidad · en este caso no tiene aplicacion pero me gustaria ver que plotea
+plot(fitted(modelo_transformado), Datos$transformada)
+
