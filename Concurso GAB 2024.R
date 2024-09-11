@@ -217,6 +217,15 @@ gDensidadTratamiento <- ggplot(Datos, aes(x = Raiz_mas_larga, fill = Especie)) +
   facet_wrap(~ Tratamiento)
 gDensidadTratamiento  # Aun asi se siguen viendo dos picos en "con remojo" raro y junco no tiene ningun pico en absoluto
 
+#hago un grafico por especie para ver visualmente el efecto del tratamiento en cada especie
+gDensidadEspecie <- ggplot(Datos, aes(x = Raiz_mas_larga, fill = Tratamiento)) +
+  geom_density(alpha = 0.8) +
+  labs(x = "Largo raíz (cm)", y = "Densidad", fill = "Tratamiento") +
+  scale_fill_manual(values = c( "#006400", "#90EE90")) + 
+  theme_minimal() +
+  theme(legend.position = "top") +
+  facet_wrap(~ Especie)
+gDensidadEspecie
 ### BOXPLOT para evaluar relacion varianza y media
 
 
@@ -246,7 +255,7 @@ BoxPlot # no es muy claro que haya un aumento de la varianza con un aumento de l
 #* Modelo normal con/sin interacion con la variancia modelada (varIden) |factor , |Especie y |Factor*Especie
 #* Modelo con distribucion Gamma Con interaccion o sin interaccion
 #* Modelo con distribucion Gamma con modelado de varianza??? esto existe? 
-  
+
 
 ####Entonces planteo modelo Normal de comparacion de medias con interaccion####
 
@@ -278,7 +287,7 @@ print(Modelo_varIdent) #nos informa los desvios estandar de cada X en funcion de
 par(mfrow = c(1, 2))
 #Homocedasticidad #residuos vs Predichos y levene
 ResVsPred_Norm_Iden<- plot(Modelo_varIdent, main="RE vs PRED - Modelo varIdent", xlab = "Valores Predichos", 
-     ylab = "Residuos" ) # Hermosoooo
+                           ylab = "Residuos" ) # Hermosoooo
 ResVsPred_Norm_Iden
 
 leveneTest( residuals(Modelo_varIdent)~ Tratamiento * Especie, data = Datos) #Da feo pero quiza puedo quedarme con el grafico y fue...
@@ -316,7 +325,7 @@ plot(modelo_gamma, main = "Modelo Gamma") # no cumple supuesto de homocedasticid
 
 
 
-################# Busco transformar los datos para que ajuste a una distribucion normal####
+# Busco transformar los datos para que ajuste a una distribucion normal#
 ##################LOG Normal###########
 install.packages("MASS")
 library(MASS)
@@ -343,7 +352,7 @@ summary(modelo_transformado)
 
 
 
-############## Busca la mejor transformacion sea como sea ######
+### Busca la mejor transformacion sea como sea ####
 install.packages("bestNormalize")
 library(bestNormalize)
 bn <- bestNormalize(Datos$Raiz_mas_larga)
@@ -375,6 +384,78 @@ library(lmtest)
 bptest(modelo_transformado)
 
 
-#Lienalidad · en este caso no tiene aplicacion pero me gustaria ver que plotea
-plot(fitted(modelo_transformado), Datos$transformada)
+##################### No es normal!! hay que usar metodos no parametricos!!! #####################
+MNoPrametrico<-kruskal.test(Raiz_mas_larga ~ interaction(Especie, Tratamiento), data = Datos)
+# Prueba post-hoc con Wilcoxon para comparar grupos
+pairwise.wilcox.test(Datos$Raiz_mas_larga, Datos$Tratamiento, p.adjust.method = "bonferroni")
+
+#otra opcion: la prueba de Dunn
+#install.packages("dunn.test")
+library(dunn.test)
+# Lista de combinaciones de Especie y Tratamiento
+combinaciones <- unique(interaction(Datos$Especie, Datos$Tratamiento))
+dunn.test(Datos$Raiz_mas_larga, Datos$Combinacion, method = "bonferroni")
+
+####Intento medio falopa para calcular IC: Bootstrap Percentil####
+#install.packages("boot")
+library(boot)
+
+# Función para calcular la mediana
+calc_median <- function(data, indices) {
+  d <- data[indices, ]  # muestra los datos en base a los índices
+  return(median(d$Raiz_mas_larga))
+}
+
+
+# Bucle para realizar el bootstrap por cada combinación
+for (combinacion in combinaciones) {
+  # Filtrar los datos por combinación de Especie y Tratamiento
+  datos_comb <- subset(Datos, interaction(Especie, Tratamiento) == combinacion)
+  
+  # Aplicar bootstrap con 1000 muestras
+  resultado_boot <- boot(data = datos_comb, statistic = calc_median, R = 1000)
+  
+  # Calcular intervalos de confianza (IC) al 95%
+  IC <- boot.ci(resultado_boot, type = "perc")
+  
+  # Mostrar los resultados
+  cat("Combinación:", combinacion, "\n")
+  cat("Mediana estimada:", median(datos_comb$Raiz_mas_larga), "\n")
+  cat("IC del 95%: [", IC$perc[4], ",", IC$perc[5], "]\n\n")
+}
+
+########### Plot para graficar medis e IC##################
+#install.packages("ggsignif")
+library(ggplot2)
+library(ggsignif)
+
+# Crear un dataframe con las combinaciones, medianas e intervalos de confianza
+datos_grafico <- data.frame(
+  Combinacion = c("Junco.Con remojo", "Pehuajó.Con remojo", "Totora.Con remojo", 
+                  "Totora.Sin remojo", "Junco.Sin remojo", "Pehuajó.Sin remojo"),
+  Mediana = c(10.75, 10.5, 6, 8, 14, 23),
+  IC_min = c(7.5, 8, 4, 7, 3, 22),
+  IC_max = c(16, 15, 7, 9, 26, 25)
+)
+
+# GRafico Medianas con IC
+p <- ggplot(datos_grafico, aes(x = Combinacion, y = Mediana)) +
+  geom_point(size = 4, color = "gray") +  # Medianas
+  geom_errorbar(aes(ymin = IC_min, ymax = IC_max), width = 0.2, color = "black") +  # Intervalos de confianza
+  geom_violin(aes(x = Combinacion, y = Mediana), draw_quantiles = c(0.5), fill = "lightblue", alpha = 0.3) +  # Violines
+  theme_minimal() +
+  ggtitle("Medianas estimadas y distribuciones por combinación de Especie y Tratamiento") +
+  xlab("Combinación Especie - Tratamiento") +
+  ylab("Mediana de Raiz más larga") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotar etiquetas del eje x
+p
+
+# Agregar las comparaciones significativas usando ggsignif
+#p + geom_signif(
+  #comparisons = list(c("Pehuajó.Sin remojo", "Pehuajó.Con remojo"),  # Comparaciones significativas
+                     #c("Totora.Sin remojo", "Totora.Con remojo")),
+  #map_signif_level = TRUE,  # Muestra asteriscos según el nivel de significancia
+  #y_position = c(27, 12),  # Ajustar la posición de las líneas de significancia
+  #tip_length = 0.03  # Largo de las líneas
+#)
 
