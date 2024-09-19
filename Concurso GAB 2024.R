@@ -1,4 +1,4 @@
-##### Consigna ####
+#### Consigna ####
 Los datos proporcionados en el archivo DatosGrado.csv (*) corresponden a registros de la
 longitud de la raiz más larga en cada biorollo, para cada especie y tratamiento, al final de la
 experiencia (día 93)
@@ -45,7 +45,7 @@ update.packages(ask = FALSE, checkBuilt = TRUE)
 ##### Importo datos y veo las variables #####
 rm(list=ls()) #limpio memoria
 #setwd("F:/Juli/Documents/Bioestadistica/Concurso GAB") #seteo directorio
-setwd("C:/Users/lauta/Downloads")
+#setwd("C:/Users/lauta/Downloads")
 datos <- read.csv("DatosGrado.csv", sep = ",", header = TRUE, stringsAsFactors = FALSE)
 head(datos) #chequeo que haya quedado bien
 # El Id y los dias desde el armado no son variables a estudiar! Tener cuidado que el ID no cohincide con el n de plantas. tenemso en total 66 plantas!
@@ -165,6 +165,15 @@ mosaic(~ Especie + Tratamiento + Raiz, data = tabla_mosaico,
        gp = gpar(fill = celda_colores),
        main = "Distribución de Plantas sin Raíz por Especie y Tratamiento",
        legend = FALSE)
+
+#Habria que hacer un modelado para ver si hay diferencias significativas entre las especies y el desarrollo de raiz
+#variable respuesta dicotomica = Con o sin raiz
+#variables explicatorias: Dos factores Especies (tres niveles) y tratamiento (dos niveles)
+
+#1. Hago tabla con las respuesta dicotomica
+#2. Planteo modelo binomial
+#3 grafico de medias con diferencias significativas.
+
 #######
 
 
@@ -325,76 +334,48 @@ plot(modelo_gamma, main = "Modelo Gamma") # no cumple supuesto de homocedasticid
 
 
 
-# Busco transformar los datos para que ajuste a una distribucion normal#
-##################LOG Normal###########
-install.packages("MASS")
-library(MASS)
-# Ajustar el modelo con la variable dependiente original
-modelo <- glm(Raiz_mas_larga ~ Especie * Tratamiento, data = Datos)
-
-# Realizar la búsqueda de la mejor transformación Box-Cox
-boxcox_resultado <- boxcox(modelo)
-
-# Encontrar el mejor valor de lambda
-mejor_lambda <- boxcox_resultado$x[which.max(boxcox_resultado$y)]
-print(paste("El mejor valor de lambda para la transformación Box-Cox es:", mejor_lambda))
-
-# Aplicar la transformación al modelo usando el mejor lambda
-Datos$transformada <- ifelse(mejor_lambda == 0,
-                             log(Datos$Raiz_mas_larga),
-                             (Datos$Raiz_mas_larga^mejor_lambda - 1) / mejor_lambda)
-
-# Ajustar el modelo con la variable transformada
-modelo_transformado <- glm(transformada ~ Especie * Tratamiento, data = Datos)
-
-# Resumen del modelo transformado
-summary(modelo_transformado)
-
-
-
-### Busca la mejor transformacion sea como sea ####
-install.packages("bestNormalize")
-library(bestNormalize)
-bn <- bestNormalize(Datos$Raiz_mas_larga)
-
-# Ver el resultado
-print(bn)
-
-# Aplicar la mejor transformación a los datos
-Datos$transformada <- bn$x.t
-
-# Ajustar el modelo con la variable transformada
-modelo_transformado <- glm(transformada ~ Especie * Tratamiento, data = Datos)
-
-# Resumen del modelo transformado
-summary(modelo_transformado )
-anova(modelo_transformado )
-
-#chequeo supuestos
-residuals <- residuals(modelo_transformado)
-qqnorm(residuals)
-qqline(residuals)
-shapiro.test(residuals)
-
-#Homocedasticidad
-plot(fitted(modelo_transformado), residuals)
-abline(h = 0, col = "red")
-install.packages("lmtest")
-library(lmtest)
-bptest(modelo_transformado)
-
-
 ##################### No es normal!! hay que usar metodos no parametricos!!! #####################
-MNoPrametrico<-kruskal.test(Raiz_mas_larga ~ interaction(Especie, Tratamiento), data = Datos)
-# Prueba post-hoc con Wilcoxon para comparar grupos
-pairwise.wilcox.test(Datos$Raiz_mas_larga, Datos$Tratamiento, p.adjust.method = "bonferroni")
 
-#otra opcion: la prueba de Dunn
+#Analisis global, hay diferencias significativas en al menos un grupo?
+KW<-kruskal.test(Raiz_mas_larga ~ interaction(Especie, Tratamiento), data = Datos)
+KW # Da significativo!
+
+
+# Prueba post-hoc con Wilcoxon para comparar grupos con y sin tratamiento.
+pairwise.wilcox.test(Datos$Raiz_mas_larga, Datos$Tratamiento, p.adjust.method = "bonferroni")
+#Hay diferencias significativas entre tratamientos
+####COn dunn evaluo contrastes de todo contra todo#####
 #install.packages("dunn.test")
 library(dunn.test)
 # Lista de combinaciones de Especie y Tratamiento
-combinaciones <- unique(interaction(Datos$Especie, Datos$Tratamiento))
-dunn.test(Datos$Raiz_mas_larga, Datos$Combinacion, method = "bonferroni")
+combinaciones <-(interaction(Datos$Especie, Datos$Tratamiento))
+dunn.test(Datos$Raiz_mas_larga,combinaciones, method = "bonferroni")
+
+##### como al hacer contrastes todo contra todo pierdo mucha potencia busco evaluar dentro de cada especie si hay diferencias significativas
+#Hago un subset de datos para cada variable
+Totora<-subset(Datos, Especie == "Totora")
+TWT<-wilcox.test(Raiz_mas_larga ~ Tratamiento, data = Totora)
+TWT # 0.038 si uso alfa= 0.05 entonces es significativo y me quedo con el tratamiento sin remojo que presenta mejores resultados
+T.sr<- subset(Totora, Tratamiento=="Sin remojo")
+
+Junco<-subset(Datos, Especie == "Junco")
+JWT<-wilcox.test(Raiz_mas_larga ~ Tratamiento, data = Junco)
+JWT # 0.5 No significativo ! puedo unir los tratamientos
+
+Pehuajo<-subset(Datos, Especie == "Pehuajó")
+PWT<-wilcox.test(Raiz_mas_larga ~ Tratamiento, data = Pehuajo)
+PWT #re significativooo, me quedo con sin remojo porque tiene mejores resultados
+P.sr<- subset (Pehuajo, Tratamiento=="Sin remojo")
+
+# Combino los datos en un solo dataframe
+datos_combinados <- rbind(T.sr, P.sr, Junco)
+# Realizar el test de Dunn
+combinaciones <- interaction(datos_combinados$Especie)
+dunn_result <- dunn.test(datos_combinados$Raiz_mas_larga, combinaciones, method = "bonferroni")
+print(dunn_result)
+
+
+
 
 ####Intento medio falopa para calcular IC: Bootstrap Percentil####
 #install.packages("boot")
@@ -449,13 +430,4 @@ p <- ggplot(datos_grafico, aes(x = Combinacion, y = Mediana)) +
   ylab("Mediana de Raiz más larga") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotar etiquetas del eje x
 p
-
-# Agregar las comparaciones significativas usando ggsignif
-#p + geom_signif(
-  #comparisons = list(c("Pehuajó.Sin remojo", "Pehuajó.Con remojo"),  # Comparaciones significativas
-                     #c("Totora.Sin remojo", "Totora.Con remojo")),
-  #map_signif_level = TRUE,  # Muestra asteriscos según el nivel de significancia
-  #y_position = c(27, 12),  # Ajustar la posición de las líneas de significancia
-  #tip_length = 0.03  # Largo de las líneas
-#)
 
